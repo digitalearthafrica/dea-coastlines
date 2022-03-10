@@ -98,8 +98,8 @@ def load_rasters(
 
             # Test if data was returned
             if len(paths) == 0:
-                raise ValueError(
-                    f"No rasters found for grid cell {study_area} "
+                print(
+                    f"WARNING: No rasters found for grid cell {study_area} "
                     f"(raster version '{raster_version}'). Verify that "
                     f"`raster.py` has been run "
                     "for this grid cell."
