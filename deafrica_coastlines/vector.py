@@ -1159,8 +1159,11 @@ def generate_vectors(
     ######################
 
     # Extract statistics modelling points along baseline contour
-    points_gdf = points_on_line(contours_gdf, baseline_year, distance=30)
-
+    try:
+        points_gdf = points_on_line(contours_gdf, baseline_year, distance=30)
+    except KeyError as e:
+        print(f"WARNING: a year is missing and raised the error {e}")
+        points_gdf = None
     # Note that `rocky_shores_clip` is not implemented
 
     # If a rocky mask is provided, use this to clip data
