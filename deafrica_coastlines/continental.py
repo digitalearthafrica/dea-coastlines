@@ -302,10 +302,7 @@ def continental_layers(
         )
 
         # Export hotspots to file
-        hotspots_gdf.to_file(
-            OUTPUT_FILE,
-            layer="hotspots"
-        )
+        hotspots_gdf.to_file(OUTPUT_FILE, layer="hotspots")
 
 
 if __name__ == "__main__":
