@@ -1139,15 +1139,19 @@ def generate_vectors(
     waterbody_mask = np.full(yearly_ds.geobox.shape, False, dtype=bool)
 
     # Mask dataset to focus on coastal zone only
-    masked_ds, certainty_masks = contours_preprocess(
-        yearly_ds,
-        gapfill_ds,
-        water_index,
-        index_threshold,
-        waterbody_mask,
-        tide_points_gdf,
-        buffer_pixels=25,
-    )
+    try:
+        masked_ds, certainty_masks = contours_preprocess(
+            yearly_ds,
+            gapfill_ds,
+            water_index,
+            index_threshold,
+            waterbody_mask,
+            tide_points_gdf,
+            buffer_pixels=25,
+        )
+    except ValueError as e:
+        print(f"WARNING: Exiting due to unexpected error proprocessing contours, {e}")
+        sys.exit(0)
 
     # Extract contours
     contours_gdf = subpixel_contours(
@@ -1181,7 +1185,7 @@ def generate_vectors(
     #     )
 
     # If any points remain after rocky shoreline clip
-    if len(points_gdf) > 0 and points_gdf is not None:
+    if points_gdf is not None and len(points_gdf) > 0:
 
         # Calculate annual coastline movements and residual tide heights
         # for every contour compared to the baseline year
@@ -1203,7 +1207,7 @@ def generate_vectors(
         # Export stats #
         ################
 
-        if points_gdf is not None:
+        if points_gdf is not None and len(points_gdf) > 0:
 
             # Set up scheme to optimise file size
             schema_dict = {
