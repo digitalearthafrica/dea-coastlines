@@ -13,6 +13,7 @@
 
 import glob
 import os
+import sys
 import warnings
 
 import click
@@ -104,6 +105,7 @@ def load_rasters(
                     f"`raster.py` has been run "
                     "for this grid cell."
                 )
+                sys.exit(0)
 
             # Create variable used for time axis
             time_var = xr.Variable("year", [int(i.split("/")[-1][0:4]) for i in paths])
