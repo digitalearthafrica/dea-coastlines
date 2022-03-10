@@ -1178,7 +1178,7 @@ def generate_vectors(
     #     )
 
     # If any points remain after rocky shoreline clip
-    if points_gdf is not None:
+    if len(points_gdf) > 0 and points_gdf is not None:
 
         # Calculate annual coastline movements and residual tide heights
         # for every contour compared to the baseline year
