@@ -1,6 +1,9 @@
 import logging
 import yaml
 import fsspec
+from pathlib import Path
+
+STYLES_FILE = Path(__file__).parent / "styles.csv"
 
 
 def configure_logging(name: str = "Coastlines") -> logging.Logger:
@@ -29,3 +32,4 @@ def load_config(config_path: str) -> dict:
     with fsspec.open(config_path, mode="r") as f:
         config = yaml.safe_load(f)
     return config
+
