@@ -32,4 +32,3 @@ def load_config(config_path: str) -> dict:
     with fsspec.open(config_path, mode="r") as f:
         config = yaml.safe_load(f)
     return config
-
