@@ -49,7 +49,6 @@ from coastlines.utils import configure_logging, load_config
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
-
 def hillshade(dem, elevation, azimuth, vert_exag=1, dx=30, dy=30):
 
     # For each supplied azimuth, compute hillshade
@@ -70,7 +69,7 @@ def terrain_shadow(x, elevation, threshold=0.4, radius=3):
     hs = binary_opening(hs, disk(radius))
     hs = binary_dilation(hs, disk(radius))
 
-    return xr.DataArray(hs, dims=['y', 'x'])
+    return xr.DataArray(hs, dims=["y", "x"])
 
 
 def sun_angles(dc, query):
@@ -124,17 +123,13 @@ def mask_terrain_shadow(dc, query, ds):
 
     # Identify terrain shadow across all timesteps
     terrain_shadow_ds = multiprocess_apply(
-        sun_angles_ds, dim="time", func=partial(terrain_shadow,
-                                                elevation=dem_ds.elevation.values), 
+        sun_angles_ds,
+        dim="time",
+        func=partial(terrain_shadow, elevation=dem_ds.elevation.values),
     )
 
     # Remove terrain shadow pixels from satellite data
     return ds.where(~terrain_shadow_ds)
-
-
-
-
-
 
 
 def load_water_index(dc, query, yaml_path, product_name="ls_nbart_mndwi"):
@@ -238,14 +233,10 @@ def load_water_index(dc, query, yaml_path, product_name="ls_nbart_mndwi"):
     # Compute MNDWI
     ds[["mndwi"]] = (ds.green - ds.swir_1) / (ds.green + ds.swir_1)
     ds[["ndwi"]] = (ds.green - ds.nir) / (ds.green + ds.nir)
-    
-    
-    
+
     # TEST
-    print('Applying terrain mask')
+    print("Applying terrain mask")
     ds = mask_terrain_shadow(dc, query, ds)
-    
-    
 
     return ds[["mndwi", "ndwi"]]
 
