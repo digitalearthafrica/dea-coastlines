@@ -61,10 +61,10 @@ def hillshade(dem, elevation, azimuth, vert_exag=1, dx=30, dy=30):
 
 
 def terrain_shadow(x, elevation, threshold=0.4, radius=3):
-    hs = hillshade(elevation, x.sun_elevation, x.sun_azimuth)
 
     from skimage.morphology import binary_dilation, binary_opening, disk
 
+    hs = hillshade(elevation, x.sun_elevation, x.sun_azimuth)
     hs = hs < threshold
     hs = binary_opening(hs, disk(radius))
     hs = binary_dilation(hs, disk(radius))
@@ -234,8 +234,8 @@ def load_water_index(dc, query, yaml_path, product_name="ls_nbart_mndwi"):
     ds[["mndwi"]] = (ds.green - ds.swir_1) / (ds.green + ds.swir_1)
     ds[["ndwi"]] = (ds.green - ds.nir) / (ds.green + ds.nir)
 
-    # TEST
-    print("Applying terrain mask")
+    # Apply terrain mask to remove deep shadows that can be
+    # be mistaken for water
     ds = mask_terrain_shadow(dc, query, ds)
 
     return ds[["mndwi", "ndwi"]]
