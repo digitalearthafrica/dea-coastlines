@@ -816,7 +816,9 @@ def generate_rasters(
     default=True,
     help="Whether to use sign AWS requests for S3 access",
 )
-def generate_rasters_cli(config_path, study_area, raster_version, start_year, end_year, aws_unsigned):
+def generate_rasters_cli(
+    config_path, study_area, raster_version, start_year, end_year, aws_unsigned
+):
     # Connect to datacube
     dc = datacube.Datacube(app="Coastlines")
 
