@@ -328,7 +328,6 @@ def load_water_index(
             align=(15, 15),
             skip_broken_datasets=True,  # To remove on prod
             resampling={"pixel_quality": "nearest", "*": "cubic"},
-            skip_broken_datasets=True,  # To remove on prod
         )
         box = product.group(bag, **settings, **query)
         ds = product.fetch(box, **settings, **query)
