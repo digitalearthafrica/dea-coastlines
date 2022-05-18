@@ -20,7 +20,6 @@
 
 import os
 import sys
-import glob
 import warnings
 import multiprocessing
 from functools import partial
@@ -1033,17 +1032,15 @@ def generate_rasters_cli(
     aws_unsigned,
     overwrite,
 ):
-    log = configure_logging(f"Coastlines Raster {study_area}")
+    log = configure_logging(f"Coastlines raster generation for study area {study_area}")
 
-    # Test if tile as already been run by checking if final raster exists
-    tiles_exist = len(
-        glob.glob(
-            f"data/interim/raster/{raster_version}/{study_area}_{raster_version}/{int(end_year) - 1}*.tif"
-        )
+    # Test if study area has already been run by checking if final raster exists
+    output_exists = os.path.exists(
+        f"data/interim/raster/{raster_version}/{study_area}_{raster_version}/{int(end_year) - 1}_mndwi.tif"
     )
 
-    # Skip if tile files exist but overwrite is False
-    if (tiles_exist > 0) and not overwrite:
+    # Skip if outputs exist but overwrite is False
+    if output_exists and not overwrite:
         log.info(
             f"Data exists for study area {study_area} but overwrite set to False; skipping."
         )
