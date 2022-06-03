@@ -25,7 +25,6 @@ import multiprocessing
 from functools import partial
 from collections import Counter
 
-import otps
 import pytz
 import dask
 import click
@@ -247,7 +246,7 @@ def load_water_index(
     dc, query, yaml_path, product_name="ls_nbart_mndwi", mask_terrain_shadow=True
 ):
     """
-    This function uses virtual products to load Landsat 5, 7 and 8 data,
+    This function uses virtual products to load Landsat 5, 7, 8 and 9 data,
     calculate a custom remote sensing index, and return the data as a
     single xarray.Dataset.
 
@@ -360,169 +359,48 @@ def load_water_index(
     return ds[["mndwi", "ndwi"]]
 
 
-# def otps_tides(lats, lons, times, timezone=None):
-#     """
-#     Model tide heights for one or more locations and times using the
-#     OTPS TPXO8 tidal model.
-
-#     Parameters:
-#     -----------
-#     lats, lons : numeric or list of numeric values
-#         One or more latitudes and longitude coordinates used to define
-#         the location at which to model tides.
-#     times : datetime.datetime or list of datetime.datetimes
-#         One or more `datatime.datetime` objects providing the times at
-#         which to model tides. By default these are assumed to be in UTC
-#         time; if this is not the case, use `timezone` below.
-#     timezone : string, optional
-#         If provided `datatime.datetime`s are not in UTC times, use this
-#         parameter to declare a timezone. E.g. to model tides for times
-#         expressed in local time at Darwin, Australia, provide
-#         `timezone='Australia/Darwin'`. Defaults to `None`, which assumes
-#         provided times are UTC. This is used to convert all times to UTC
-#         using the `pytz` module. For a full list of timezones, run:
-#         `import pytz; pytz.all_timezones`.
-
-#     Returns:
-#     --------
-#     tidepoints_df : pandas.DataFrame
-#         An `pandas.DataFrame` with a "time" index, "lat" and "lon"
-#         columns, and a "tide_m" column giving tide heights at each
-#         point location.
-#     """
-
-#     # Convert to list if provided as individual values
-#     if not isinstance(lats, list):
-#         lats = [lats]
-#     if not isinstance(lons, list):
-#         lons = [lons]
-#     if not isinstance(times, list):
-#         times = [times]
-
-#     # If a timezone is provided, localise the input times then
-#     # standardise to UTC times
-#     if timezone:
-#         times = [
-#             pytz.timezone(timezone).localize(time).astimezone(pytz.utc)
-#             for time in times
-#         ]
-
-#     # Create list of lat/lon/time scenarios to model tides
-#     observed_timepoints = [
-#         otps.TimePoint(lon, lat, time) for time in times for lon, lat in zip(lons, lats)
-#     ]
-
-#     # Model tides for each lat/lon/time
-#     observed_predictedtides = otps.predict_tide(observed_timepoints)
-
-#     # Output results into pandas.DataFrame
-#     tidepoints_df = pd.DataFrame(
-#         [
-#             (i.timepoint.timestamp, i.timepoint.lon, i.timepoint.lat, i.tide_m)
-#             for i in observed_predictedtides
-#         ],
-#         columns=["time", "lon", "lat", "tide_m"],
-#     )
-
-#     return tidepoints_df.set_index("time")
-
-
-# def model_tide_points(ds, points_gdf, extent_buffer=0.05):
-#     """
-#     Takes an xarray.Dataset (`ds`), extracts a subset of tide modelling
-#     points from a geopandas.GeoDataFrame based on`ds`'s extent, then
-#     uses the OTPS tidal model to model tide heights for every point
-#     at every time step in `ds`.
-
-#     The output is a geopandas.GeoDataFrame with a "time" index
-#     (matching the time steps in `ds`), and a "tide_m" column giving the
-#     tide heights at each point location.
-
-#     Parameters:
-#     -----------
-#     ds : xarray.Dataset
-#         An `xarray.Dataset` containing a time series of water index
-#         data (e.g. MNDWI) for the provided datacube query.
-#     points_gdf : geopandas.GeoDataFrame
-#         A `geopandas.GeoDataFrame` containing spatial points used to
-#         model tides using the OTPS tidal model.
-#     extent_buffer : float, optional
-#         A float giving the extent in degrees to buffer the satellite
-#         imagery dataset (`ds`) when selecting spatial points used
-#         to model tides. This buffer creates overlap between analysis
-#         areas, which ensures that modelled tides are seamless when
-#         clipped back to the dataset extent in a subsequent step.
-
-#     Returns:
-#     --------
-#     tidepoints_gdf : geopandas.GeoDataFrame
-#         An `geopandas.GeoDataFrame` containing modelled tide heights
-#         with an index based on each timestep in `ds`.
-#     """
-
-#     # Obtain extent of loaded data, and buffer to ensure that tides
-#     # are modelled reliably and comparably across grid tiles
-#     ds_extent = shape(ds.geobox.geographic_extent.json)
-#     buffered = ds_extent.buffer(extent_buffer)
-#     subset_gdf = points_gdf[points_gdf.geometry.intersects(buffered)]
-
-#     # Extract lon, lat from tides, and time from satellite data
-#     x_vals = subset_gdf.geometry.x.tolist()
-#     y_vals = subset_gdf.geometry.y.tolist()
-#     observed_datetimes = ds.time.data.astype("M8[s]").astype("O").tolist()
-
-#     # Model tides for each coordinate and time
-#     tidepoints_df = otps_tides(lats=y_vals, lons=x_vals, times=observed_datetimes)
-
-#     # Convert data to spatial geopandas.GeoDataFrame
-#     tidepoints_gdf = gpd.GeoDataFrame(
-#         data={"time": tidepoints_df.index, "tide_m": tidepoints_df.tide_m},
-#         geometry=gpd.points_from_xy(tidepoints_df.lon, tidepoints_df.lat),
-#         crs="EPSG:4326",
-#     )
-
-#     # Reproject to satellite data CRS
-#     tidepoints_gdf = tidepoints_gdf.to_crs(crs=ds.crs)
-
-#     # Fix time and set to index
-#     tidepoints_gdf["time"] = pd.to_datetime(tidepoints_gdf["time"], utc=True)
-#     tidepoints_gdf = tidepoints_gdf.set_index("time")
-
-#     return tidepoints_gdf
-
-def model_tides(x,
-                y,
-                time,
-                model="FES2014",
-                directory="tide_models",
-                epsg=4326,
-                method="bilinear",
-                extrapolate=True,
-                cutoff=10.0):
+def model_tides(
+    x,
+    y,
+    time,
+    model="FES2014",
+    directory="tide_models",
+    epsg=4326,
+    method="bilinear",
+    extrapolate=True,
+    cutoff=10.0,
+):
     """
     Compute tides at points and times using tidal harmonics.
     If multiple x, y points are provided, tides will be
     computed for all timesteps at each point.
+
     This function supports any tidal model supported by
     `pyTMD`, including the FES2014 Finite Element Solution
     tide model, and the TPXO8-atlas and TPXO9-atlas-v5
     TOPEX/POSEIDON global tide models.
+
     This function requires access to tide model data files
     to work. These should be placed in a folder with
     subfolders matching the formats specified by `pyTMD`:
     https://pytmd.readthedocs.io/en/latest/getting_started/Getting-Started.html#directories
+
     For FES2014 (https://www.aviso.altimetry.fr/es/data/products/auxiliary-products/global-tide-fes/description-fes2014.html):
         - {directory}/fes2014/ocean_tide/
           {directory}/fes2014/load_tide/
+
     For TPXO8-atlas (https://www.tpxo.net/tpxo-products-and-registration):
         - {directory}/tpxo8_atlas/
+
     For TPXO9-atlas-v5 (https://www.tpxo.net/tpxo-products-and-registration):
         - {directory}/TPXO9_atlas_v5/
+
     This function is a minor modification of the `pyTMD`
     package's `compute_tide_corrections` function, adapted
     to process multiple timesteps for multiple input point
     locations. For more info:
     https://pytmd.readthedocs.io/en/stable/user_guide/compute_tide_corrections.html
+
     Parameters:
     -----------
     x, y : float or list of floats
@@ -531,8 +409,8 @@ def model_tides(x,
         coordinates should be lat/lon; use `epsg` if they
         are in a custom coordinate reference system.
     time : A datetime array or pandas.DatetimeIndex
-        An array containing 'datetime64[ns]' values or a 
-        'pandas.DatetimeIndex' providing the times at which to 
+        An array containing 'datetime64[ns]' values or a
+        'pandas.DatetimeIndex' providing the times at which to
         model tides in UTC time.
     model : string
         The tide model used to model tides. Options include:
@@ -564,9 +442,10 @@ def model_tides(x,
     cutoff : int or float
         Extrapolation cutoff in kilometers. Set to `np.inf`
         to extrapolate for all points.
+
     Returns
     -------
-    A pandas.DataFrame containing tide heights for every 
+    A pandas.DataFrame containing tide heights for every
     combination of time and point coordinates.
     """
     import os
@@ -581,7 +460,7 @@ def model_tides(x,
     from pyTMD.read_tide_model import extract_tidal_constants
     from pyTMD.read_netcdf_model import extract_netcdf_constants
     from pyTMD.read_GOT_model import extract_GOT_constants
-    from pyTMD.read_FES_model import extract_FES_constants    
+    from pyTMD.read_FES_model import extract_FES_constants
 
     # Check that tide directory is accessible
     try:
@@ -591,7 +470,7 @@ def model_tides(x,
 
     # Get parameters for tide model
     model = pyTMD.model(directory, format="netcdf", compressed=False).elevation(model)
-    
+
     # If time passed as a single Timestamp, convert to datetime64
     if isinstance(time, pd.Timestamp):
         time = time.to_datetime64()
@@ -600,9 +479,9 @@ def model_tides(x,
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)
     time = np.atleast_1d(time)
-    
+
     # Determine point and time counts
-    assert len(x) == len(y), 'x and y must be the same length'
+    assert len(x) == len(y), "x and y must be the same length"
     n_points = len(x)
     n_times = len(time)
 
@@ -717,29 +596,33 @@ def model_tides(x,
     tide.data[tide.mask] = tide.fill_value
 
     # Export data as a dataframe
-    return pd.DataFrame({"time": np.tile(time, n_points),
-                         "x": np.repeat(x, n_times),
-                         "y": np.repeat(y, n_times),
-                         "tide_m": tide}).set_index("time")
+    return pd.DataFrame(
+        {
+            "time": np.tile(time, n_points),
+            "x": np.repeat(x, n_times),
+            "y": np.repeat(y, n_times),
+            "tide_m": tide,
+        }
+    ).set_index("time")
 
 
-def model_tide_points(ds, 
-                      points_gdf, 
-                      extent_buffer=0.05,
-                      tide_model="",
-                      directory="../tide_models",
-                      
-                     ):
+def model_tide_points(
+    ds,
+    points_gdf,
+    extent_buffer=0.05,
+    tide_model="FES2014",
+    directory="/var/share",
+):
     """
-    Takes an xarray.Dataset (`ds`), extracts a subset of tide modelling 
-    points from a geopandas.GeoDataFrame based on`ds`'s extent, then 
-    uses the `model_tides` function based on `pyTMD` to model tide 
+    Takes an xarray.Dataset (`ds`), extracts a subset of tide modelling
+    points from a geopandas.GeoDataFrame based on`ds`'s extent, then
+    uses the `model_tides` function based on `pyTMD` to model tide
     heights for every point at every time step in `ds`.
-    
-    The output is a geopandas.GeoDataFrame with a "time" index 
-    (matching the time steps in `ds`), and a "tide_m" column giving the 
+
+    The output is a geopandas.GeoDataFrame with a "time" index
+    (matching the time steps in `ds`), and a "tide_m" column giving the
     tide heights at each point location.
-    
+
     Parameters:
     -----------
     ds : xarray.Dataset
@@ -754,7 +637,22 @@ def model_tide_points(ds,
         to model tides. This buffer creates overlap between analysis
         areas, which ensures that modelled tides are seamless when
         clipped back to the dataset extent in a subsequent step.
-    
+    tide_model : string
+        The tide model used to model tides. Options include:
+        - FES2014
+        - TPXO8-atlas
+        - TPXO9-atlas-v5
+    directory : string
+        The directory containing tide model data files. These
+        data files should be stored in sub-folders for each
+        model that match the structure provided by `pyTMD`:
+        https://pytmd.readthedocs.io/en/latest/getting_started/Getting-Started.html#directories
+        For example:
+        - {directory}/fes2014/ocean_tide/
+          {directory}/fes2014/load_tide/
+        - {directory}/tpxo8_atlas/
+        - {directory}/TPXO9_atlas_v5/
+
     Returns:
     --------
     tidepoints_gdf : geopandas.GeoDataFrame
@@ -771,30 +669,26 @@ def model_tide_points(ds,
     # Extract lon, lat from tides, and time from satellite data
     x_vals = subset_gdf.geometry.x.tolist()
     y_vals = subset_gdf.geometry.y.tolist()
-    observed_datetimes = ds.time.data.astype('M8[s]').astype('O').tolist()
+    observed_datetimes = ds.time.data.astype("M8[s]").astype("O").tolist()
 
     # Model tides for each coordinate and time
     tidepoints_df = model_tides(
-        x=x_vals,
-        y=y_vals,
-        time=ds.time.values,
-        directory=directory,
-        model='FES2014')
-    
+        x=x_vals, y=y_vals, time=ds.time.values, directory=directory, model=tide_model
+    )
+
     # Convert data to spatial geopandas.GeoDataFrame
-    tidepoints_gdf = gpd.GeoDataFrame(data={'time': tidepoints_df.index,
-                                            'tide_m': tidepoints_df.tide_m},
-                                      geometry=gpd.points_from_xy(
-                                          tidepoints_df.x,
-                                          tidepoints_df.y),
-                                      crs='EPSG:4326')
+    tidepoints_gdf = gpd.GeoDataFrame(
+        data={"time": tidepoints_df.index, "tide_m": tidepoints_df.tide_m},
+        geometry=gpd.points_from_xy(tidepoints_df.x, tidepoints_df.y),
+        crs="EPSG:4326",
+    )
 
     # Reproject to satellite data CRS
     tidepoints_gdf = tidepoints_gdf.to_crs(crs=ds.crs)
 
     # Fix time and set to index
-    tidepoints_gdf['time'] = pd.to_datetime(tidepoints_gdf['time'], utc=True)
-    tidepoints_gdf = tidepoints_gdf.set_index('time')
+    tidepoints_gdf["time"] = pd.to_datetime(tidepoints_gdf["time"], utc=True)
+    tidepoints_gdf = tidepoints_gdf.set_index("time")
 
     return tidepoints_gdf
 
@@ -1234,7 +1128,7 @@ def generate_rasters(
     # geopandas.GeoDataFrame with a "time" index (matching every time
     # step in our Landsat data), and a "tide_m" column giving the tide
     # heights at each point location at that time.
-    tidepoints_gdf = model_tide_points(ds, points_gdf)
+    tidepoints_gdf = model_tide_points(ds, points_gdf, directory="/var/share")
 
     # Test if there is data and skip rest of the analysis if not
     if tidepoints_gdf.geometry.unique().shape[0] <= 1:
