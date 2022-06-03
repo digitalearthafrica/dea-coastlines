@@ -44,7 +44,12 @@ pd.options.mode.chained_assignment = None
 
 
 def load_rasters(
-    path, raster_version, study_area, water_index="mndwi", start_year=1988
+    path,
+    raster_version,
+    study_area,
+    water_index="mndwi",
+    start_year=2000,
+    end_year=2020,
 ):
     """
     Loads DEA Coastlines water index (e.g. 'MNDWI'), 'tide_m', 'count',
@@ -67,7 +72,10 @@ def load_rasters(
         Modified Normalised Difference Water Index.
     start_year : integer, optional
         The first annual layer to include in the analysis. Defaults to
-        1988.
+        2000.
+    end_year : integer, optional
+        The final annual layer to include in the analysis. Defaults to
+        2020.
 
     Returns:
     --------
@@ -78,8 +86,8 @@ def load_rasters(
     gapfill_ds : xarray.Dataset
         An `xarray.Dataset` containing three-year gapfill rasters.
         The dataset contains water index (e.g. 'MNDWI'),
-        'tide_m', 'count', and 'stdev' arrays for each year from 1988
-        onward.
+        'tide_m', 'count', and 'stdev' arrays for each year from
+        `start_year` to `end_year`.
 
     """
 
@@ -123,7 +131,7 @@ def load_rasters(
         layer_ds = xr.merge(da_list).squeeze("band", drop=True)
         layer_ds = layer_ds.assign_attrs(layer_da.attrs)
         layer_ds.attrs["transform"] = Affine(*layer_ds.transform)
-        layer_ds = layer_ds.sel(year=slice(start_year, None))
+        layer_ds = layer_ds.sel(year=slice(str(start_year), str(end_year)))
 
         # Append to list
         ds_list.append(layer_ds)
@@ -1130,8 +1138,9 @@ def generate_vectors(
     vector_version,
     water_index,
     index_threshold,
+    start_year,
+    end_year,
     baseline_year,
-    initial_year=2000,
     log=None,
 ):
     ###############################
@@ -1148,9 +1157,10 @@ def generate_vectors(
         raster_version=raster_version,
         study_area=study_area,
         water_index=water_index,
-        start_year=initial_year,
+        start_year=start_year,
+        end_year=end_year,
     )
-    log.info(f"Study area {study_area}: Rasters loaded")
+    log.info(f"Study area {study_area}: Loaded rasters")
 
     # Create output vector folder using supplied vector version string;
     # if no vector version is provided, copy this from raster version
@@ -1207,7 +1217,7 @@ def generate_vectors(
     contours_gdf = subpixel_contours(
         da=masked_ds, z_values=index_threshold, min_vertices=10, dim="year"
     ).set_index("year")
-    log.info(f"Study area {study_area}: Annual shorelines extracted")
+    log.info(f"Study area {study_area}: Extracted annual shorelines")
 
     ######################
     # Compute statistics #
@@ -1215,9 +1225,12 @@ def generate_vectors(
 
     # Extract statistics modelling points along baseline shoreline
     try:
-        points_gdf = points_on_line(contours_gdf, baseline_year, distance=30)
-        log.info(f"Study area {study_area}: Rates of change points extracted")
+
+        points_gdf = points_on_line(contours_gdf, str(baseline_year), distance=30)
+        log.info(f"Study area {study_area}: Extracted rates of change points")
+
     except KeyError:
+
         log.warning(
             f"Study area {study_area}: One or more years missing, so no statistics points were generated"
         )
@@ -1232,7 +1245,7 @@ def generate_vectors(
             points_gdf,
             contours_gdf,
             yearly_ds,
-            baseline_year,
+            str(baseline_year),
             water_index,
             max_valid_dist=3000,
         )
@@ -1248,7 +1261,7 @@ def generate_vectors(
         # (SCE), Net Shoreline Movement (NSM) and Max/Min years
         stats_list = ["valid_obs", "valid_span", "sce", "nsm", "max_year", "min_year"]
         points_gdf[stats_list] = points_gdf.apply(
-            lambda x: all_time_stats(x, initial_year=initial_year), axis=1
+            lambda x: all_time_stats(x, initial_year=start_year), axis=1
         )
 
         # Add certainty column to flag points with:
@@ -1317,10 +1330,6 @@ def generate_vectors(
 
     # Assign certainty to shorelines based on underlying masks
     contours_gdf = contour_certainty(contours_gdf, certainty_masks)
-
-    # Add maturity details
-    contours_gdf["maturity"] = "final"
-    contours_gdf.loc[contours_gdf.index == baseline_year, "maturity"] = "interim"
 
     # Add tide datum details (this supports future addition of extra tide datums)
     contours_gdf["tide_datum"] = "0 m AMSL (approx)"
@@ -1399,23 +1408,25 @@ def generate_vectors(
     "subpixel precision shorelines. Defaults to 0.00.",
 )
 @click.option(
-    "--baseline_year",
-    type=str,
-    default="2020",
-    help="The annual shoreline used to generate the "
-    "rates of change point statistics. This is typically "
-    "the most recent annual shoreline in the dataset.",
+    "--start_year",
+    type=int,
+    default=2000,
+    help="The first annual shoreline to extract from the input raster data.",
 )
 @click.option(
-    "--initial_year",
-    type=str,
-    default="2000",
-    help="The first year of data used to extract shorelines. "
-    "This should typically be one year after the first year "
-    "of data loaded in the raster generation step to ensure "
-    "that each shoreline has one year of data on either side "
-    "for gap-filling low data observations (e.g. if the first "
-    "year of raster data is 1999, set `--initial_year 2000`.)",
+    "--end_year",
+    type=int,
+    default=2020,
+    help="The final annual shoreline to extract from the input raster data.",
+)
+@click.option(
+    "--baseline_year",
+    type=int,
+    default=2020,
+    help="The annual shoreline used as a baseline from "
+    "white to generate the rates of change point statistics. "
+    "This is typically the most recent annual shoreline in "
+    "the dataset (i.e. the same as `--end_year`).",
 )
 @click.option(
     "--overwrite/--no-overwrite",
@@ -1431,8 +1442,9 @@ def generate_vectors_cli(
     vector_version,
     water_index,
     index_threshold,
+    start_year,
+    end_year,
     baseline_year,
-    initial_year,
     overwrite,
 ):
 
@@ -1462,8 +1474,9 @@ def generate_vectors_cli(
             vector_version,
             water_index,
             index_threshold,
+            start_year,
+            end_year,
             baseline_year,
-            initial_year,
             log=log,
         )
     except Exception as e:

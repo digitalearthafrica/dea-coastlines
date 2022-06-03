@@ -896,11 +896,12 @@ def generate_rasters(
     # Loading data #
     ################
 
-    # Create query
+    # Create query; start year and end year are buffered by one year
+    # on either side to facilitate gapfilling low data observations
     geopoly = Geometry(gridcell_gdf.iloc[0].geometry, crs=gridcell_gdf.crs)
     query = {
         "geopolygon": geopoly.buffer(0.05),
-        "time": (start_year, end_year),
+        "time": (str(start_year - 1), str(end_year + 1)),
         "dask_chunks": {"time": 1, "x": 3000, "y": 3000},
     }
 
@@ -953,7 +954,9 @@ def generate_rasters(
     # calculate tide cutoffs used to restrict our data to satellite
     # observations centred over mid-tide (0 m Above Mean Sea Level).
     tide_cutoff_min, tide_cutoff_max = tide_cutoffs(ds, tidepoints_gdf)
-    log.info(f"Study area {study_area}: Calculating low and high tide cutoffs for each pixel")
+    log.info(
+        f"Study area {study_area}: Calculating low and high tide cutoffs for each pixel"
+    )
 
     ##############################
     # Generate yearly composites #
@@ -1003,25 +1006,31 @@ def generate_rasters(
 )
 @click.option(
     "--start_year",
-    type=str,
-    default="1999",
-    help="The first year used to load data. Note that this "
-    "should buffer the desired temporal extent of the "
-    "analysis by one year to allow sufficient data for "
-    "gapfilling low data pixels. For example, set "
-    "`--start_year 1999` to extract a shoreline timeseries "
-    "that commences in 2000.",
+    type=int,
+    default=2000,
+    help="The first annual shoreline you wish to be included "
+    "in the final outputs. To allow low data pixels to be "
+    "gapfilled with additional satellite data from neighbouring "
+    "years, the full timeseries of satellite data loaded in this "
+    "step will include one additional year of preceding satellite data "
+    "(i.e. if `--start_year 2000`, satellite data from 1999 onward "
+    "will be loaded for gapfilling purposes). Because of this, we "
+    "recommend that at least one year of satellite data exists in "
+    "your datacube prior to `--start_year`.",
 )
 @click.option(
     "--end_year",
-    type=str,
-    default="2021",
-    help="The last year used to load data. Note that this "
-    "should buffer the desired temporal extent of the "
-    "analysis by one year to allow sufficient data for "
-    "gapfilling low data pixels. For example, set "
-    "`--end_year 2021` to extract a shoreline timeseries "
-    "that finishes in the year 2020.",
+    type=int,
+    default=2020,
+    help="The final annual shoreline you wish to be included "
+    "in the final outputs. To allow low data pixels to be "
+    "gapfilled with additional satellite data from neighbouring "
+    "years, the full timeseries of satellite data loaded in this "
+    "step will include one additional year of ensuing satellite data "
+    "(i.e. if `--end_year 2020`, satellite data up to and including "
+    "2021 will be loaded for gapfilling purposes). Because of this, we "
+    "recommend that at least one year of satellite data exists in your "
+    "datacube after `--end_year`.",
 )
 @click.option(
     "--aws_unsigned/--no-aws_unsigned",

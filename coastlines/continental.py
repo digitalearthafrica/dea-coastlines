@@ -11,7 +11,9 @@
 
 
 import os
+import sys
 
+import fiona
 import click
 import geopandas as gpd
 from pathlib import Path
@@ -81,8 +83,8 @@ from coastlines.utils import configure_logging, STYLES_FILE
 )
 @click.option(
     "--baseline_year",
-    type=str,
-    default="2020",
+    type=int,
+    default=2020,
     help="The annual shoreline used to generate the hotspot "
     "summary points. This is typically the most recent "
     "annual shoreline in the dataset.",
@@ -108,7 +110,7 @@ def continental_cli(
     # Merge vectors #
     #################
 
-    log = configure_logging("Coastlines Continental")
+    log = configure_logging("Continental layers and hotspots generation")
 
     # If no continental version is provided, copy this from vector
     # version
@@ -130,6 +132,7 @@ def continental_cli(
 
     # Combine annual shorelines into a single continental layer
     if shorelines:
+
         os.system(
             f"ogrmerge.py -o "
             f"{OUTPUT_FILE} {shoreline_paths} "
@@ -137,11 +140,13 @@ def continental_cli(
             f"-nln shorelines_annual"
         )
         log.info("Merging annual shorelines complete")
+
     else:
         log.info("Not writing shorelines")
 
     # Combine rates of change stats points into single continental layer
     if ratesofchange:
+
         os.system(
             f"ogrmerge.py "
             f"-o {OUTPUT_FILE} {ratesofchange_paths} "
@@ -149,6 +154,7 @@ def continental_cli(
             f"-nln rates_of_change"
         )
         log.info("Merging rates of change points complete")
+
     else:
         log.info("Not writing annual rates of change points")
 
@@ -172,7 +178,7 @@ def continental_cli(
             ratesofchange_gdf = gpd.read_file(OUTPUT_FILE, layer="rates_of_change")
             shorelines_gdf = gpd.read_file(OUTPUT_FILE, layer="shorelines_annual")
 
-        except fiona.errors.DriverError:
+        except (fiona.errors.DriverError, ValueError):
 
             raise FileNotFoundError(
                 "Continental-scale annual shoreline and rates of "
@@ -204,7 +210,7 @@ def continental_cli(
             # Extract hotspot points
             log.info(f"Calculating hotspots at {radius} m")
             hotspots_gdf = points_on_line(
-                shorelines_gdf, index=baseline_year, distance=radius
+                shorelines_gdf, index=str(baseline_year), distance=radius
             )
 
             # Create polygon windows
@@ -232,7 +238,12 @@ def continental_cli(
 
             # Export hotspots to file, incrementing name for each layer
             layer_name = f"hotspots_zoom_{range(0, 10)[i + 1]}"
-            hotspots_gdf.to_file(OUTPUT_FILE, layer=layer_name)
+
+            try:
+                hotspots_gdf.to_file(OUTPUT_FILE, layer=layer_name)
+            except ValueError as e:
+                log.exception(f"Failed to generate hotspots with error: {e}")
+                sys.exit(1)
 
         log.info("Writing hotspots complete")
 
