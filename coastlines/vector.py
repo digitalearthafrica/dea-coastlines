@@ -36,8 +36,10 @@ from skimage.morphology import binary_closing, binary_dilation, dilation, disk
 
 from coastlines.utils import configure_logging, load_config
 
-# Hide warnings
+# Hide specific warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
+warnings.simplefilter(action="ignore", category=DeprecationWarning)
+warnings.simplefilter(action="ignore", category=RuntimeWarning)
 pd.options.mode.chained_assignment = None
 
 
@@ -1129,6 +1131,7 @@ def generate_vectors(
     water_index,
     index_threshold,
     baseline_year,
+    initial_year=2000,
     log=None,
 ):
     ###############################
@@ -1138,16 +1141,16 @@ def generate_vectors(
     if log is not None:
         log = configure_logging()
 
-    log.info(f"Starting vector generation for study area: {study_area}")
+    log.info(f"Study area {study_area}: Starting vector generation")
 
     yearly_ds, gapfill_ds = load_rasters(
         path="data/interim/raster",
         raster_version=raster_version,
         study_area=study_area,
         water_index=water_index,
-        start_year=2000,
+        start_year=initial_year,
     )
-    log.info("Rasters loaded")
+    log.info(f"Study area {study_area}: Rasters loaded")
 
     # Create output vector folder using supplied vector version string;
     # if no vector version is provided, copy this from raster version
@@ -1176,7 +1179,7 @@ def generate_vectors(
     tide_points_gdf = gpd.read_file(
         config["Input files"]["coastal_points_path"], bbox=bbox
     ).to_crs(yearly_ds.crs)
-    log.info("Loaded tide modelling points")
+    log.info(f"Study area {study_area}: Loaded tide modelling points")
 
     # Study area polygon
     gridcell_gdf = (
@@ -1204,7 +1207,7 @@ def generate_vectors(
     contours_gdf = subpixel_contours(
         da=masked_ds, z_values=index_threshold, min_vertices=10, dim="year"
     ).set_index("year")
-    log.info("Annual shorelines extracted")
+    log.info(f"Study area {study_area}: Annual shorelines extracted")
 
     ######################
     # Compute statistics #
@@ -1213,9 +1216,11 @@ def generate_vectors(
     # Extract statistics modelling points along baseline shoreline
     try:
         points_gdf = points_on_line(contours_gdf, baseline_year, distance=30)
-        log.info("Rates of change points extracted")
+        log.info(f"Study area {study_area}: Rates of change points extracted")
     except KeyError:
-        log.warning("One or more years missing, so no statistics points were generated")
+        log.warning(
+            f"Study area {study_area}: One or more years missing, so no statistics points were generated"
+        )
         points_gdf = None
 
     # If any points exist in the dataset
@@ -1231,17 +1236,19 @@ def generate_vectors(
             water_index,
             max_valid_dist=3000,
         )
-        log.info("Calculated distances to each annual shoreline")
+        log.info(
+            f"Study area {study_area}: Calculated distances to each annual shoreline"
+        )
 
         # Calculate regressions
         points_gdf = calculate_regressions(points_gdf, contours_gdf)
-        log.info("Calculated rates of change regressions")
+        log.info(f"Study area {study_area}: Calculated rates of change regressions")
 
         # Add count and span of valid obs, Shoreline Change Envelope
         # (SCE), Net Shoreline Movement (NSM) and Max/Min years
         stats_list = ["valid_obs", "valid_span", "sce", "nsm", "max_year", "min_year"]
         points_gdf[stats_list] = points_gdf.apply(
-            lambda x: all_time_stats(x, initial_year=2000), axis=1
+            lambda x: all_time_stats(x, initial_year=initial_year), axis=1
         )
 
         # Add certainty column to flag points with:
@@ -1256,7 +1263,7 @@ def generate_vectors(
         points_gdf.loc[
             points_gdf.valid_obs < 15, "certainty"
         ] = "insufficient observations"
-        log.info("Calculated all of time statistics")
+        log.info(f"Study area {study_area}: Calculated all of time statistics")
 
         ################
         # Export stats #
@@ -1302,7 +1309,7 @@ def generate_vectors(
                 schema={"properties": col_schema, "geometry": "Point"},
             )
         else:
-            log.warning("No points remain after rocky shoreline clip")
+            log.warning(f"Study area {study_area}: No points to process")
 
     #####################
     # Export shorelines #
@@ -1332,7 +1339,7 @@ def generate_vectors(
     # Export rates of change and annual shorelines as ESRI shapefiles
     contours_gdf.reset_index().to_file(f"{contour_path}.shp")
     log.info(
-        f"Output rates of change points and annual shorelines written to {output_dir}"
+        f"Study area {study_area}: Output rates of change points and annual shorelines written to {output_dir}"
     )
 
 
@@ -1400,6 +1407,17 @@ def generate_vectors(
     "the most recent annual shoreline in the dataset.",
 )
 @click.option(
+    "--initial_year",
+    type=str,
+    default="2000",
+    help="The first year of data used to extract shorelines. "
+    "This should typically be one year after the first year "
+    "of data loaded in the raster generation step to ensure "
+    "that each shoreline has one year of data on either side "
+    "for gap-filling low data observations (e.g. if the first "
+    "year of raster data is 1999, set `--initial_year 2000`.)",
+)
+@click.option(
     "--overwrite/--no-overwrite",
     type=bool,
     default=True,
@@ -1414,6 +1432,7 @@ def generate_vectors_cli(
     water_index,
     index_threshold,
     baseline_year,
+    initial_year,
     overwrite,
 ):
 
@@ -1427,7 +1446,7 @@ def generate_vectors_cli(
     # Skip if outputs exist but overwrite is False
     if output_exists and not overwrite:
         log.info(
-            f"Data exists for study area {study_area} but overwrite set to False; skipping."
+            f"Study area {study_area}: Data exists but overwrite set to False; skipping."
         )
         sys.exit(0)
 
@@ -1444,12 +1463,11 @@ def generate_vectors_cli(
             water_index,
             index_threshold,
             baseline_year,
+            initial_year,
             log=log,
         )
     except Exception as e:
-        log.exception(
-            f"Failed to run process on study area {study_area} with error {e}"
-        )
+        log.exception(f"Study area {study_area}: Failed to run process with error {e}")
         sys.exit(1)
 
 
