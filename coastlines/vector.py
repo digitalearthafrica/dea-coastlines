@@ -1265,8 +1265,8 @@ def generate_vectors(
         )
 
         # Add certainty column to flag points with:
-        # - Extreme rate of change value (> 200 m per year change) that is more 
-        #   likely to reflect modelling issues than real-world coastal change 
+        # - Extreme rate of change value (> 200 m per year change) that is more
+        #   likely to reflect modelling issues than real-world coastal change
         # - High angular variability: the nearest shorelines for each year do not
         #   fall on an approximate line, making rates of change invalid
         # - Insufficient observations: less than 15 valid annual shorelines, which
