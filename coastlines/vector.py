@@ -1209,10 +1209,13 @@ def rocky_shoreline_flag(
         geomorphology_gdf[["rocky", "geometry"]],
         how="left",
         max_distance=300,
-    )["rocky"]
+    )
 
-    # Return boolean indicating whether point was rocky
-    return joined == True
+    # Return boolean indicating whether point was rocky; take max of 
+    # each unique index value (i.e. True if there are both True and False)
+    # to account for edge case where nearest geomorphology is the corner 
+    # of two vector features
+    return (joined["rocky"] == True).groupby(joined.index).max()
 
 
 def region_atttributes(gdf, region_gdf, attribute_col="TERRITORY1", rename_col=False):
