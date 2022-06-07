@@ -468,6 +468,17 @@ def contours_preprocess(
         neighbouring timesteps. True land, however, is likely to appear
         in proximity to land before or after the specific timestep.
         Defaults to True.
+    mask_modifications : geopandas.GeoDataFrame, optional
+        An optional polygon dataset including features to remove or add
+        to the all-time coastal mask. This should include a column/field
+        named 'type' that contains two possible values:
+            - 'add': features to add to the coastal mask (e.g. for
+                     including areas of missing shorelines that were
+                     previously removed by the coastal mask)
+            - 'remove': features to remove from the coastal mask (e.g.
+                        areas of non-coastal rivers or estuaries,
+                        irrigated fields or aquaculture that you wish
+                        to exclude from the analysis)
 
     Returns:
     --------
