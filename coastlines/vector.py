@@ -1510,9 +1510,7 @@ def generate_vectors(
 
     # Export rates of change and annual shorelines as ESRI shapefiles
     contours_gdf.reset_index().to_file(f"{contour_path}.shp")
-    log.info(
-        f"Study area {study_area}: Output vector files written to {output_dir}"
-    )
+    log.info(f"Study area {study_area}: Output vector files written to {output_dir}")
 
 
 @click.command()
