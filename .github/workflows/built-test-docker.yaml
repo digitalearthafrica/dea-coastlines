@@ -7,7 +7,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
+      - update-image-build-requirements-test
   release:
     types:
       - created
