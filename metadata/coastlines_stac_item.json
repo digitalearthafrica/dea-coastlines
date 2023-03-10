@@ -53,19 +53,40 @@
     "links": [
         {
             "rel": "product_overview",
-            "href": "https://geoserver.digitalearth.africa/geoserver/web/",
+            "href": "https://geoserver.digitalearth.africa/geoserver/coastlines/wms?service=WMS&version=1.1.0&request=GetMap&layers=coastlines%3Acoastlines_v0_4_0_shorelines_annual&bbox=-17.530020617134365%2C-34.83347119293824%2C51.41527617299833%2C37.358192510742306&width=733&height=768&srs=EPSG%3A4326&styles=&format=application/openlayers",
             "type": "application/json"
+        },
+        {
+            "rel": "product_documentation",
+            "href": "https://docs.digitalearthafrica.org/en/latest/data_specs/Coastlines_specs.html",
+            "type": "text/html"
         },
         {
             "rel": "self",
             "href": "s3://deafrica-services/coastlines/v0.4.0/deafricacoastlines_v0.4.0.shp.zip",
             "type": "application/json"
+        },
+        {
+            "rel": "collection",
+            "href": "https://raw.githubusercontent.com/digitalearthafrica/deafrica-coastlines/main/metadata/coastlines_stac_collection.json"
+        },
+        {
+            "rel": "root",
+            "href": "https://raw.githubusercontent.com/Indiphile/stac_catalog_browse_test/master/catalog.json"
         }
     ],
     "assets": {
         "coastlines": {
             "href": "https://deafrica-services.s3.af-south-1.amazonaws.com/coastlines/v0.4.0/deafricacoastlines_v0.4.0.shp.zip",
             "type": "application/zip",
+            "title": "coastlines",
+            "roles": [
+                "data"
+            ]
+        },
+        "coastlines_geopackage": {
+            "href": "https://deafrica-services.s3.af-south-1.amazonaws.com/coastlines/v0.4.0/deafricacoastlines_v0.4.0.gpkg",
+            "type": "application/gpkg",
             "title": "coastlines",
             "roles": [
                 "data"

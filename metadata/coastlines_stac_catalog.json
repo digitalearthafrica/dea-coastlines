@@ -1,0 +1,27 @@
+{
+    "stac_version": "1.0.0",
+    "id": "deafrica_coastlines",
+    "title": "deafrica_coastlines",
+    "description": "Coastlines for Africa produced by Digital Earth Africa.",
+    "type": "Catalog",
+    "links": [
+        {
+            "rel": "self",
+            "href": "https://raw.githubusercontent.com/Indiphile/vector-stac/test1/catalog.json"
+        },
+        {
+            "title": "coastlines_stac_colllection",
+            "description": "Coastlines for Africa produced by Digital Earth Africa.",
+            "rel": "child",
+            "href": "https://raw.githubusercontent.com/Indiphile/vector-stac/test1/coastlines_stac_collection.json"
+        },
+        {
+            "rel": "root",
+            "href": "https://raw.githubusercontent.com/Indiphile/vector-stac/test1/collections.json"
+        }
+    ],
+    "conformsTo": [
+        "https://api.stacspec.org/v1.0.0-beta.2/core",
+        "https://api.stacspec.org/v1.0.0-beta.2/item-search"
+    ]
+}
