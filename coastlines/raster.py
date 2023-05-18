@@ -125,8 +125,7 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 #     # same approach used to group satellite imagery (i.e. solar day)
 #     gb = query_group_by(**query)
 #     datasets = dc.find_datasets(**query)
-#     dataset_array = dc.group_datasets(datasets, gb)
-
+#     dataset_array = dc.group_datasets(datasets, gb)S
 #     # Load and take the mean of metadata from each product
 #     sun_azimuth = xr_apply(
 #         dataset_array,
@@ -189,7 +188,7 @@ def terrain_shadow(ds, dem, threshold=0.5, radius=1):
     return xr.DataArray(hs, dims=["y", "x"])
 
 
-def terrain_shadow_masking(dc, query, ds, dem_product="dem_cop_30"):
+def terrain_shadow_masking(dc, query, ds, product_name, dem_product="dem_cop_30"):
     """
     Use a Digital Elevation Model to calculate and apply a terrain
     shadow mask to set all satellite pixels to `NaN` if they are
@@ -206,6 +205,9 @@ def terrain_shadow_masking(dc, query, ds, dem_product="dem_cop_30"):
     ds : xarray.Dataset
         An `xarray.Dataset` containing a time series of water index
         data (e.g. MNDWI) that will be terrain shadow masked.
+    product_name: string, 
+        A string ('s2_l2a' or 'ls_sr_st') to identify either Landsat 
+        or Sentinel-2 to apply terrain shadow masking.
     dem_product : string, optional
         A string giving the name of the DEM product to use for terrain
         masking. This must match the name of a product in the datacube.
@@ -221,11 +223,15 @@ def terrain_shadow_masking(dc, query, ds, dem_product="dem_cop_30"):
 
     # Compute solar angles for all satellite image timesteps
     query_subset = {k: v for k, v in query.items() if k not in ["dask_chunks"]}
-    query_subset.update(
-        product=["ls5_sr", "ls7_sr", "ls8_sr", "ls9_sr"],
-        collection_category="T1",
-        group_by="solar_day",
-    )
+    if product_name=='s2_l2a':
+        query_subset.update(product=['s2_l2a'],
+                            group_by="solar_day")
+    else:
+        query_subset.update(
+            product=["ls5_sr", "ls7_sr", "ls8_sr", "ls9_sr"],
+            collection_category="T1",
+            group_by="solar_day",
+        )
     sun_angles_ds = sun_angles(dc, query_subset)
 
     # Load DEM into satellite data geobox
@@ -244,12 +250,11 @@ def terrain_shadow_masking(dc, query, ds, dem_product="dem_cop_30"):
     # Remove terrain shadow pixels from satellite data
     return ds.where(~terrain_shadow_ds)
 
-
 def load_water_index(
-    dc, query, yaml_path, product_name="ls_nbart_mndwi", mask_terrain_shadow=True
+    dc, query, yaml_path, product_name="s2_l2a", mask_terrain_shadow=True
 ):
     """
-    This function uses virtual products to load Landsat 5, 7, 8 and 9 data,
+    This function uses virtual products to load Sentinel-2 A and B data,
     calculate a custom remote sensing index, and return the data as a
     single xarray.Dataset.
 
@@ -269,7 +274,7 @@ def load_water_index(
     yaml_path : string
         Path to YAML file containing virtual product recipe.
     product_name : string, optional
-        Name of the virtual product to load from the YAML recipe.
+        Name of the satellite imagery virtual product to load from the YAML recipe.
     mask_terrain_shadow : bool, optional
         Whether to use hillshading to mask out pixels potentially
         affected by terrain shadow. This can significantly improve
@@ -315,28 +320,44 @@ def load_water_index(
         crs = crs_counts.most_common(1)[0][0]
 
         # Pass CRS to product load
-        settings = dict(
-            output_crs=crs,
-            resolution=(-30, 30),
-            align=(15, 15),
-            skip_broken_datasets=True,  # To remove on prod
-            resampling={"pixel_quality": "nearest", "*": "cubic"},
-        )
+        if product_name=='s2_l2a': # Sentinel-2
+            settings = dict(
+                output_crs=crs,
+                resolution=(-10, 10),
+                align=(5, 5),
+                skip_broken_datasets=True,  # To remove on prod
+                resampling={"qa": "nearest", "*": "cubic"},
+            )
+        else:
+            settings = dict(
+                output_crs=crs,
+                resolution=(-30, 30),
+                align=(15, 15),
+                skip_broken_datasets=True,  # To remove on prod
+                resampling={"pixel_quality": "nearest", "*": "cubic"},
+            )
         box = product.group(bag, **settings, **query)
         ds = product.fetch(box, **settings, **query)
 
     # Rechunk if smallest chunk is less than 10
     if ((len(ds.x) % 3000) <= 10) or ((len(ds.y) % 3000) <= 10):
         ds = ds.chunk({"x": 3200, "y": 3200})
-
-    # Identify pixels that are either cloud, cloud shadow or nodata
-    nodata = make_mask(ds["pixel_quality"], nodata=True)
-    mask = (
-        make_mask(ds["pixel_quality"], cloud="high_confidence")
-        | make_mask(ds["pixel_quality"], cloud_shadow="high_confidence")
-        | nodata
-    )
-
+    
+    # Identify pixels that are either nodata, saturated, cloud shadows or cloud
+    if product_name=='s2_l2a': # Sentinel-2
+        nodata=make_mask(ds['qa'],qa="no data")
+        mask=(make_mask(ds['qa'],qa="saturated or defective")
+              |make_mask(ds['qa'],qa="cloud shadows")
+              |make_mask(ds['qa'],qa="cloud high probability")
+              |nodata
+             )
+    else: # Landsat
+        nodata = make_mask(ds["pixel_quality"], nodata=True)
+        mask = (
+            make_mask(ds["pixel_quality"], cloud="high_confidence")
+            | make_mask(ds["pixel_quality"], cloud_shadow="high_confidence")
+            | nodata
+        )
     # Apply opening to remove long narrow false positive clouds along
     # the coastline, then dilate to restore cloud edges
     mask_cleaned = odc.algo.mask_cleanup(
@@ -344,6 +365,7 @@ def load_water_index(
     )
     ds = ds.where(~mask_cleaned & ~nodata)
 
+#     print('mean of green band: ',ds.green.mean().compute())
     # Mask any invalid pixel values outside of 0 and 1
     ds["green"] = ds.green.where((ds.green >= 0) & (ds.green <= 1))
     ds["swir_1"] = ds.swir_1.where((ds.swir_1 >= 0) & (ds.swir_1 <= 1))
@@ -356,10 +378,10 @@ def load_water_index(
     # Apply terrain mask to remove deep shadows that can be
     # be mistaken for water
     if mask_terrain_shadow:
-        ds = terrain_shadow_masking(dc, query, ds, dem_product="dem_cop_30")
+        if product_name!='s2_l2a': # I can't get terrain_shadow_masking function working for Sentinel-2 (sun angles can't be retrieved)
+            ds = terrain_shadow_masking(dc, query, ds, product_name,dem_product="dem_cop_30")
 
     return ds[["mndwi", "ndwi"]]
-
 
 # def model_tides(
 #     x,
@@ -455,6 +477,7 @@ def load_water_index(
 #     import numpy as np
 #     import pyTMD.time
 #     import pyTMD.model
+#     import pyTMD.io.model
 #     import pyTMD.utilities
 #     from pyTMD.calc_delta_time import calc_delta_time
 #     from pyTMD.infer_minor_corrections import infer_minor_corrections
@@ -606,7 +629,6 @@ def load_water_index(
 #             "tide_m": tide,
 #         }
 #     ).set_index("time")
-
 
 # def model_tide_points(
 #     ds,
@@ -1026,7 +1048,7 @@ def export_annual_gapfill(ds, output_dir, tide_cutoff_min, tide_cutoff_max):
 
 
 def generate_rasters(
-    dc, config, study_area, raster_version, start_year, end_year, log=None
+    dc, config, product_name, study_area, raster_version, start_year, end_year, log=None
 ):
     #####################################
     # Connect to datacube, Dask cluster #
@@ -1074,7 +1096,7 @@ def generate_rasters(
             dc,
             query,
             yaml_path=config["Virtual product"]["virtual_product_path"],
-            product_name=config["Virtual product"]["virtual_product_name"],
+            product_name=product_name,
         )
     except (ValueError, IndexError):
         raise ValueError(f"Study area {study_area}: No valid data found")
@@ -1090,6 +1112,7 @@ def generate_rasters(
     # Add  this new data as a new variable in our satellite dataset to allow
     # each satellite pixel to be analysed and filtered/masked based on the
     # tide height at the exact moment of satellite image acquisition.
+#     ds["tide_m"], tides_lowres = pixel_tides(ds, resample=True, directory="/var/share")
     ds["tide_m"], tides_lowres = pixel_tides(ds, resample=True, directory="/var/share")
     log.info(f"Study area {study_area}: Finished modelling tide heights")
 
@@ -1130,6 +1153,13 @@ def generate_rasters(
     help="Path to the YAML config file defining inputs to "
     "use for this analysis. These are typically located in "
     "the `dea-coastlines/configs/` directory.",
+)
+@click.option(
+    "--product_name",
+    type=str,
+    required=True,
+    help="Name of the satellite products use for this analysis "
+    'i.e. "s2_l2a" for Sentinel-2 and "ls_sr_st" for Landsat products',
 )
 @click.option(
     "--study_area",
@@ -1191,6 +1221,7 @@ def generate_rasters(
 )
 def generate_rasters_cli(
     config_path,
+    product_name,
     study_area,
     raster_version,
     start_year,
@@ -1225,6 +1256,7 @@ def generate_rasters_cli(
         generate_rasters(
             dc,
             config,
+            product_name,
             study_area,
             raster_version,
             start_year,

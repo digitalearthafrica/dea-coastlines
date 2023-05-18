@@ -1,4 +1,4 @@
-about: Catalog of virtual products for loading Landsat USGS Collection 2 products
+about: Catalog of virtual products for loading Landsat USGS Collection 2 products and Sentinel-2 products
 products:
 
     # Landsat 9 USGS Collection 2 Tier 1 Surface Reflectance, rescaled using scaling factors and
@@ -258,4 +258,44 @@ products:
                  pixel_quality: pixel_quality
                  temp: temp
                  mndwi:
-                    formula: (green - swir_1) / (green + swir_1)       
+                    formula: (green - swir_1) / (green + swir_1)
+                    
+    # Sentinel-2a and Sentinel-2b Surface Reflectance, rescaled
+    s2_l2a:
+        recipe:
+            &s2_l2a
+            transform: expressions
+            input:
+                product: s2_l2a
+                measurements: [blue, green, red, nir, swir_1, swir_2, qa]
+                group_by: solar_day
+            output:
+                 blue:
+                     formula: 1.0e-4 * blue
+                     dtype: float32
+                 green:
+                     formula: 1.0e-4 * green
+                     dtype: float32
+                 red: 
+                     formula: 1.0e-4 * red
+                     dtype: float32
+                 nir: 
+                     formula: 1.0e-4 * nir
+                     dtype: float32
+                 swir_1: 
+                     formula: 1.0e-4 * swir_1
+                     dtype: float32
+                 swir_2: 
+                     formula: 1.0e-4 * swir_2
+                     dtype: float32
+                 qa: qa
+                 
+    # Sentinel-2 data, converted to MNDWI
+    s2_mndwi:
+         recipe:
+             transform: expressions
+             input: s2_l2a
+             output:
+                 qa: qa
+                 mndwi:
+                    formula: (green - swir_1) / (green + swir_1)   
