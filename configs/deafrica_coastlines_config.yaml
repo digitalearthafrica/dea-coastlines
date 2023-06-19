@@ -1,6 +1,6 @@
 Virtual product:
     virtual_product_path: configs/deafrica_virtual_product_landsat_sentinel2.yaml
-    virtual_product_name: s2_l2a
+    virtual_product_name: ls_sr_st
 Input files:
     grid_path: https://deafrica-input-datasets.s3.af-south-1.amazonaws.com/deafrica-coastlines/32km_coastal_grid_deafrica.geojson
     points_path: https://deafrica-input-datasets.s3.af-south-1.amazonaws.com/deafrica-coastlines/5km_coastal_points_deafrica.geojson

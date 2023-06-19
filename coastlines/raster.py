@@ -950,12 +950,19 @@ def tidal_composite(
     )
     median_ds["stdev"] = year_ds.mndwi.std(dim="time", keep_attrs=True)
 
+        # Set nodata values, using np.nan for floats and -999 for ints
+    for var_name, var in median_ds.data_vars.items():
+        median_ds[var_name].attrs["nodata"] = -999 if var.dtype == "int16" else np.nan
+
+    # Load data into memory
+    median_ds.load()
+    
     # Set nodata values
-    median_ds["ndwi"].attrs["nodata"] = np.nan
-    median_ds["mndwi"].attrs["nodata"] = np.nan
-    median_ds["tide_m"].attrs["nodata"] = np.nan
-    median_ds["stdev"].attrs["nodata"] = np.nan
-    median_ds["count"].attrs["nodata"] = -999
+#     median_ds["ndwi"].attrs["nodata"] = np.nan
+#     median_ds["mndwi"].attrs["nodata"] = np.nan
+#     median_ds["tide_m"].attrs["nodata"] = np.nan
+#     median_ds["stdev"].attrs["nodata"] = np.nan
+#     median_ds["count"].attrs["nodata"] = -999
 
     # Write each variable to file
     if export_geotiff:
@@ -972,7 +979,9 @@ def tidal_composite(
     return median_ds
 
 
-def export_annual_gapfill(ds, output_dir, tide_cutoff_min, tide_cutoff_max):
+def export_annual_gapfill(
+    ds, output_dir, tide_cutoff_min, tide_cutoff_max, start_year, end_year
+):
     """
     To calculate both annual median composites and three-year gapfill
     composites without having to load more than three years in memory
@@ -993,6 +1002,9 @@ def export_annual_gapfill(ds, output_dir, tide_cutoff_min, tide_cutoff_max):
         satellite observations for each individual pixel that fall
         within this range. All pixels with tide heights outside of
         this range will be set to `NaN`.
+    start_year, end year : int
+        The first and last years you wish to export annual median
+        composites and three-year gapfill composites for.
     """
 
     # Create empty vars containing un-composited data from the previous,
@@ -1003,17 +1015,33 @@ def export_annual_gapfill(ds, output_dir, tide_cutoff_min, tide_cutoff_max):
     future_ds = None
 
     # Iterate through each year in the dataset, starting at one year before
-    for year in np.unique(ds.time.dt.year) - 1:
-        # Load data for the subsequent year
-        future_ds = load_tidal_subset(
-            ds.sel(time=str(year + 1)),
-            tide_cutoff_min=tide_cutoff_min,
-            tide_cutoff_max=tide_cutoff_max,
-        )
+    for year in np.arange(start_year - 2, end_year + 1):
+
+        try:
+
+            # Load data for the subsequent year; drop tide variable as
+            # we do not need to create annual composites from this data
+            future_ds = load_tidal_subset(
+                ds.sel(time=str(year + 1)),
+                tide_cutoff_min=tide_cutoff_min,
+                tide_cutoff_max=tide_cutoff_max,
+            ).drop_vars("tide_m")
+
+        except KeyError:
+
+            # Create empty array if error is raised due to no data being
+            # available for time period
+            future_ds = xr.DataArray(
+                data=np.empty(shape=(0, len(ds.y), len(ds.x))),
+                dims=["time", "y", "x"],
+                coords={"x": ds.x, "y": ds.y, "time": []},
+                name="mndwi",
+            ).to_dataset()
 
         # If the current year var contains data, combine these observations
-        # into median annual high tide composites and export GeoTIFFs
+        # into annual median composites and export GeoTIFFs
         if current_ds:
+
             # Generate composite
             tidal_composite(
                 current_ds,
@@ -1027,6 +1055,7 @@ def export_annual_gapfill(ds, output_dir, tide_cutoff_min, tide_cutoff_max):
         # combine these three years of observations into a single median
         # 3-year gapfill composite
         if previous_ds and current_ds and future_ds:
+
             # Concatenate the three years into one xarray.Dataset
             gapfill_ds = xr.concat([previous_ds, current_ds, future_ds], dim="time")
 
@@ -1045,7 +1074,6 @@ def export_annual_gapfill(ds, output_dir, tide_cutoff_min, tide_cutoff_max):
         previous_ds = current_ds
         current_ds = future_ds
         future_ds = []
-
 
 def generate_rasters(
     dc, config, product_name, study_area, raster_version, start_year, end_year, log=None
@@ -1113,7 +1141,7 @@ def generate_rasters(
     # each satellite pixel to be analysed and filtered/masked based on the
     # tide height at the exact moment of satellite image acquisition.
 #     ds["tide_m"], tides_lowres = pixel_tides(ds, resample=True, directory="/var/share")
-    ds["tide_m"], tides_lowres = pixel_tides(ds, resample=True, directory="/var/share")
+    ds["tide_m"], tides_lowres = pixel_tides(ds, resample=True, directory="tide_models_clipped")
     log.info(f"Study area {study_area}: Finished modelling tide heights")
 
     # Based on the entire time-series of tide heights, compute the max
@@ -1138,7 +1166,7 @@ def generate_rasters(
     # Iterate through each year and export annual and 3-year
     # gapfill composites
     log.info(f"Study area {study_area}: Started exporting raster data")
-    export_annual_gapfill(ds, output_dir, tide_cutoff_min, tide_cutoff_max)
+    export_annual_gapfill(ds, output_dir, tide_cutoff_min, tide_cutoff_max,start_year, end_year)
     log.info(f"Study area {study_area}: Completed exporting raster data")
 
     # Close dask client
