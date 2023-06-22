@@ -40,7 +40,7 @@ from skimage.morphology import (
     disk,
 )
 from coastlines.utils import configure_logging, load_config
-from dea_tools.spatial import subpixel_contours, xr_vectorize, xr_rasterize
+from deafrica_tools.spatial import subpixel_contours, xr_vectorize, xr_rasterize
 
 # Hide specific warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
